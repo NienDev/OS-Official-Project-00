@@ -929,7 +929,7 @@ namespace OS_Project.Views
                 #region Display detail info
 
                 FName.Text = GetFileFolderName(node.info.fullpath);
-                FSize.Text = node.info.size.ToString();
+                FSize.Text = getSize(node).ToString();
                 FTime.Text = node.info.time;
                 FDate.Text = node.info.date;
                 FArchive.Text = node.info.isArchive;
@@ -1002,7 +1002,7 @@ namespace OS_Project.Views
                 #region Display detail info
 
                 FName.Text = GetFileFolderName(node.info.fullpath);
-                FSize.Text = node.info.size.ToString();
+                FSize.Text = getSize(node).ToString();
                 FTime.Text = node.info.time;
                 FDate.Text = node.info.date;
                 FArchive.Text = node.info.isArchive;
