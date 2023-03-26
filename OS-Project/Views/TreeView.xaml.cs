@@ -461,7 +461,7 @@ namespace OS_Project.Views
                 fullpath = _a.fullpath;
                 RDET_start = _a.RDET_start;
                 sub_dir_start = _a.sub_dir_start;
-                isFile = _a.isFile ? _a.isFile : false;
+                isFile = _a.isFile;
                 isExpanded = _a.isExpanded;
                 size = _a.size;
                 date = _a.date;
@@ -475,7 +475,7 @@ namespace OS_Project.Views
                 isReadOnly = _a.isReadOnly;
                 type = _a.type;
                 sectorPerCluster = _a.sectorPerCluster;
-                if (type != "") isFile = (type == "File") ? true : false;
+                if (!string.IsNullOrEmpty(type)) isFile = (type == "File") ? true : false;
                 Index = _a.Index;
                 ParentIndex=_a.ParentIndex;
 
@@ -844,7 +844,7 @@ namespace OS_Project.Views
                             if (data[index * 32 + 11] == 0x10) //folder
                             {
 
-                                info.isFile = false;
+                                node.children.Last<Node>().info.isFile = false;
 
                                 ulong startingCluster = (ulong)BitConverter.ToInt16(data, index * 32 + 26);
                                 ulong starting_Subdir = starting_RDET + (startingCluster - 2) * (ulong)sectorPerCluster * 512;
@@ -1039,7 +1039,7 @@ namespace OS_Project.Views
                 #region Display detail info
 
                 FName.Text = GetFileFolderName(node.info.fullpath);
-                FSize.Text = node.info.size.ToString();
+                FSize.Text = getSize(node).ToString();
                 FTime.Text = node.info.time;
                 FDate.Text = node.info.date;
                 FArchive.Text = node.info.isArchive;
