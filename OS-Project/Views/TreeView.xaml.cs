@@ -116,17 +116,17 @@ namespace OS_Project.Views
                 long TotalMFTSize = (long)BitConverter.ToInt64(buffer, (int)StartingAttribute + 0x28);
                 return (int)TotalMFTSize / 1024;
             }
-            public bool isFolder(byte[] buffer, ref string Type)
+            public bool isFolder(byte[] buffer)
             {
                 int flag = (int)BitConverter.ToInt16(buffer, 0x16);
                 if (flag == 0x01)
                 {
-                    Type = "File";
+              
                     return false;
                 }
                 if (flag == 0x03)
                 {
-                    Type = "Folder";
+              
                     return true;
                 }
                 return true;
@@ -148,7 +148,20 @@ namespace OS_Project.Views
                 return false;
             }
 
-            public void StandardInformation_Reader(byte[] buffer, ref int StartingAttribute, ref DateTime CreatedTime, ref DateTime LastModified)
+            public bool isZoneIdentifier(byte[] buffer, int StartingAttribute)
+            {
+                //string Name = "";
+                int NameLength = (int)buffer[StartingAttribute + 0x09];
+                //int NameOffset = (int)BitConverter.ToInt16(buffer, StartingAttribute + 0xA);
+                if (NameLength != 0)
+                {
+                    //Name = Encoding.Unicode.GetString(buffer,StartingAttribute + NameOffset, NameLength * 2);
+                    return true;
+                }
+                return false;
+            }
+
+            public void StandardInformation_Reader(byte[] buffer, ref int StartingAttribute, ref DateTime CreatedTime, ref DateTime LastModified, ref bool isReadOnly, ref bool isHidden, ref bool isSystem)
             {
 
                 long Datetemp = 0;
@@ -160,13 +173,18 @@ namespace OS_Project.Views
                 Datetemp = (long)BitConverter.ToInt64(buffer, (int)StartingAttribute + 0x18 + 0x08);
                 LastModified = DateTime.FromFileTime(Datetemp).ToLocalTime();
 
+                //Check its property
+                int PropertyIndex = (int)StartingAttribute + 0x38;
+                int Property = (int)BitConverter.ToInt32(buffer, PropertyIndex);
+                isReadOnly = GetBitValue(Property, 0);
+                isHidden = GetBitValue(Property, 1);
+                isSystem = GetBitValue(Property, 2);
+
                 //Update for the next attribute
                 int AttributeLength = (int)BitConverter.ToInt32(buffer, (int)StartingAttribute + 0x04);
                 StartingAttribute += AttributeLength;
-
-
             }
-            public void FileName_Reader(byte[] buffer, ref int StartingAttribute, ref int ParentID, ref bool isReadOnly, ref bool isHidden, ref bool isSystem, ref string FileName)
+            public void FileName_Reader(byte[] buffer, ref int StartingAttribute, ref int ParentID, ref string FileName)
             {
 
                 // Get name of file
@@ -175,13 +193,6 @@ namespace OS_Project.Views
 
                 //get parent id of file
                 ParentID = calcuParentID(buffer, StartingAttribute);
-
-                //Check its property
-                int PropertyIndex = (int)StartingAttribute + 0x50;
-                int Property = (int)BitConverter.ToInt32(buffer, PropertyIndex);
-                isReadOnly = GetBitValue(Property, 0);
-                isHidden = GetBitValue(Property, 1);
-                isSystem = GetBitValue(Property, 2);
 
                 //Update StartingAttribute
                 int AttributeLength = (int)BitConverter.ToInt32(buffer, (int)StartingAttribute + 0x04);
@@ -193,17 +204,14 @@ namespace OS_Project.Views
             {
                 //Check Resident or non-resident
 
-                if (SizeOfFile == -1)
+                if (!isZoneIdentifier(buffer, StartingAttribute))
                 {
                     if (isResident(buffer, StartingAttribute))
-                        SizeOfFile = (int)BitConverter.ToInt32(buffer, 0x04);
+                    {
+                        SizeOfFile = (long)BitConverter.ToInt32(buffer, StartingAttribute + 0x10);
+                    }
                     else
                         SizeOfFile = (long)BitConverter.ToInt64(buffer, StartingAttribute + 0x30);
-
-                }
-                if (SizeOfFile != -1 && !isResident(buffer, StartingAttribute))
-                {
-                    SizeOfFile = (long)BitConverter.ToInt64(buffer, StartingAttribute + 0x30);
                 }
                 //if (isResident(buffer, StartingAttribute))
                 //    SizeOfFile = (int)BitConverter.ToInt32(buffer, 0x04);
@@ -226,7 +234,7 @@ namespace OS_Project.Views
             public int calcuParentID(byte[] buffer, int StartingAttribute)
             {
                 int ParentIDIndex = StartingAttribute + 0x18;
-                byte[] temp = new byte[8] { buffer[ParentIDIndex], buffer[ParentIDIndex + 2], buffer[ParentIDIndex + 2], buffer[ParentIDIndex + 3], buffer[ParentIDIndex + 4], buffer[ParentIDIndex + 5], 0, 0 };
+                byte[] temp = new byte[8] { buffer[ParentIDIndex], buffer[ParentIDIndex + 1], buffer[ParentIDIndex + 2], buffer[ParentIDIndex + 3], buffer[ParentIDIndex + 4], buffer[ParentIDIndex + 5], 0, 0 };
                 return (int)BitConverter.ToInt64(temp, 0);
             }
             public List<NodeInfo> File_Reader_NTFS(string DriveName, long StartingPartition)
@@ -258,6 +266,7 @@ namespace OS_Project.Views
                     int NumOfEntry = calNumbOfEntries(buffer, StartingAttribute);
                     while (count < NumOfEntry)
                     {
+                        EntryID = calcuEntryID(buffer);
                         StartingAttribute = (int)calStartingAttribute(buffer);
                         if (isDelete(buffer))
                         {
@@ -268,8 +277,10 @@ namespace OS_Project.Views
                         }
                         else
                         {
-                            if (isFolder(buffer, ref Type))
-                                SizeOfFile = 0;
+                            if (isFolder(buffer))
+                                Type = "Folder";
+                            else
+                                Type = "File";
 
                             if (!isEmptyEntry(buffer))
                             {
@@ -279,11 +290,11 @@ namespace OS_Project.Views
                                 {
                                     if (buffer[StartingAttribute] == STANDARD_INFORMATION)
                                     {
-                                        StandardInformation_Reader(buffer, ref StartingAttribute, ref CreatedTime, ref LastModified);
+                                        StandardInformation_Reader(buffer, ref StartingAttribute, ref CreatedTime, ref LastModified, ref isReadOnly, ref isHidden, ref isSystem);
                                     }
                                     else if (buffer[StartingAttribute] == FILE_NAME)
                                     {
-                                        FileName_Reader(buffer, ref StartingAttribute, ref ParentID, ref isReadOnly, ref isHidden, ref isSystem, ref FileName);
+                                        FileName_Reader(buffer, ref StartingAttribute, ref ParentID, ref FileName);
                                         if (isSystem || FileName.Contains("$"))
                                         {
                                             break;
@@ -672,7 +683,7 @@ namespace OS_Project.Views
                 #region Display detail info
 
                 FName.Text = GetFileFolderName(node.info.fullpath);
-                FSize.Text = node.info.size.ToString();
+                FSize.Text = getSize(node).ToString();
                 FDate.Text = node.info.date.Remove(node.info.date.IndexOf(" "), node.info.date.Length - node.info.date.IndexOf(" "));
                 FTime.Text =  node.info.date.Substring(node.info.date.IndexOf(" "), node.info.date.Length - node.info.date.IndexOf(" "));
                 FHidden.Text = node.info.isHidden;
@@ -714,7 +725,7 @@ namespace OS_Project.Views
                 #region Display detail info
 
                 FName.Text = GetFileFolderName(node.info.fullpath);
-                FSize.Text = node.info.size.ToString();
+                FSize.Text = getSize(node).ToString();
                 FDate.Text = node.info.date.Remove(node.info.date.IndexOf(" "), node.info.date.Length - node.info.date.IndexOf(" "));
                 FTime.Text = node.info.date.Substring(node.info.date.IndexOf(" "), node.info.date.Length - node.info.date.IndexOf(" "));
                 FHidden.Text = node.info.isHidden;
@@ -748,11 +759,6 @@ namespace OS_Project.Views
 
             //newNTFS.print();
             return newNTFS;
-        }
-
-        public void getNTFSFileFolderNames()
-        {
-
         }
 
         public static string GetFileFolderName(string path)
@@ -951,7 +957,7 @@ namespace OS_Project.Views
                 #region Display detail info
 
                 FName.Text = GetFileFolderName(node.info.fullpath);
-                FSize.Text = node.info.size.ToString();
+                FSize.Text = getSize(node).ToString();
                 FDate.Text = node.info.date.Remove(node.info.date.IndexOf(" "), node.info.date.Length - node.info.date.IndexOf(" "));
                 FTime.Text = node.info.date.Substring(node.info.date.IndexOf(" "), node.info.date.Length - node.info.date.IndexOf(" "));
                 FHidden.Text = node.info.isHidden;
@@ -1254,5 +1260,24 @@ namespace OS_Project.Views
             node.children = children;
             return node;
         }
+
+        private ulong getSize(Node node)
+        {
+
+            if (node.info.isFile == false)
+            {
+                ulong sum = 0;
+                foreach (Node child in node.children)
+                {
+                    sum += getSize(child);
+                }
+                return sum;
+            }
+            else
+            {
+                return node.info.size;
+            }
+        }
+
     }
 }
