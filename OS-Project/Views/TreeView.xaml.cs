@@ -593,7 +593,7 @@ namespace OS_Project.Views
                 FAT fat = new FAT(info.starting_position, info.name);
                 //getFATFileFolderNames(fat.RDET, fat.starting_RDET, fat.driveName, (int)fat.SectorsPerCluster, null);
                 Node root = new Node();
-                getFATFileFolderNames(fat.RDET, fat.starting_RDET, (int)fat.SectorsPerCluster, ref root);
+                getFATFileFolderNames(fat.RDET, fat.starting_RDET, fat.starting_RDET, (int)fat.SectorsPerCluster, ref root);
 
                 displayFATTree(root, null, info.name);
             }
@@ -777,7 +777,7 @@ namespace OS_Project.Views
             return path.Substring(lastIndex + 1);
         }
 
-        public void getFATFileFolderNames( byte[] data, ulong starting_RDET, int sectorPerCluster, ref Node node)
+        public void getFATFileFolderNames(byte[] data, ulong starting_SDET, ulong starting_RDET, int sectorPerCluster, ref Node node)
         {
 
             int index = 0;
@@ -857,7 +857,7 @@ namespace OS_Project.Views
                                 }
 
                                 Node new_node = new Node();
-                                getFATFileFolderNames(sub_dir, starting_RDET, info.sectorPerCluster, ref new_node);
+                                getFATFileFolderNames(sub_dir, starting_Subdir, starting_RDET, info.sectorPerCluster, ref new_node);
                                 foreach(Node child in new_node.children)
                                 {
                                     node.children.Last<Node>().children.Add(child);
@@ -909,7 +909,7 @@ namespace OS_Project.Views
                     count++;
                     using (FileStream fs = new FileStream(PATH, FileMode.Open, FileAccess.Read))
                     {
-                        fs.Seek((long)(starting_RDET) + 512 * count, SeekOrigin.Begin); //
+                        fs.Seek((long)(starting_SDET) + 512 * count, SeekOrigin.Begin); //
                         fs.Read(data, 0, data.Length);
                         fs.Close();
                     }
